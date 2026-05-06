@@ -1,3 +1,5 @@
+from typing import List
+
 from pydantic import BaseModel
 
 class FeatureVectorChurn(BaseModel):
@@ -22,3 +24,9 @@ class DatasetRowChurn(BaseModel): # строка тренировочного д
     payment_method: str
     autopay_enabled: int
     churn:int
+
+class DatasetInfo(BaseModel): # модель для GET /dataset/info
+    rows_count: int
+    columns_count: int
+    titles: List[str]
+    churn_distribution: dict[str, float]
