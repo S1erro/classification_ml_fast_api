@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from utils.is_dataframe_empty import is_dataframe_empty
+from utils.prepare_data import get_churn_distribution, prepare_dataframe, split_train_test
 from .models import DatasetInfo, FeatureVectorChurn
 from .read_csv import UseCsvData
 
@@ -32,6 +33,16 @@ async def get_dataset_info() -> DatasetInfo:
         churn_distribution={'temporary plug': 0.29}
     )
     return dataset_info
+
+@app.get("/dataset/split-info")
+async def get_dataset_split_info():
+
+    X, y = prepare_dataframe(csv_data.df)
+    X_train, X_test, y_train, y_test = split_train_test(X, y)
+
+    test_distribution, train_distribution = get_churn_distribution(y_test, y_train)
+
+    return X_train.shape, X_test.shape, test_distribution, train_distribution
 
 @app.post("/predict")
 async def predict(vector: FeatureVectorChurn) -> FeatureVectorChurn:
