@@ -1,6 +1,8 @@
 from sklearn.model_selection import train_test_split
 from pandas import DataFrame, Series
 
+from ..constants.constants import CATEGORICAL_COLUMNS, NUMERIC_COLUMNS
+
 def split_train_test(
         X: DataFrame,
         y: Series
@@ -10,7 +12,7 @@ def split_train_test(
         X, 
         y, 
         test_size=0.2, 
-        stratify=y, 
+        stratify=y,
         random_state=2
     )
 
@@ -22,23 +24,8 @@ def prepare_dataframe(df: DataFrame) -> tuple[DataFrame, Series]:
     X = local_dataframe.drop(columns=["churn"])
     y = local_dataframe["churn"]
 
-    numeric_features = [
-        "monthly_fee",
-        "usage_hours",
-        "support_requests",
-        "account_age_months",
-        "failed_payments",
-    ]
-
-    categorical_features = [
-        "region",
-        "device_type",
-        "payment_method",
-        "autopay_enabled",
-    ]
-
-    X[numeric_features] = X[numeric_features].fillna(X[numeric_features].mean())
-    X[categorical_features] = X[categorical_features].fillna("unknown")
+    X[NUMERIC_COLUMNS] = X[NUMERIC_COLUMNS].fillna(X[NUMERIC_COLUMNS].mean())
+    X[CATEGORICAL_COLUMNS] = X[CATEGORICAL_COLUMNS].fillna("unknown")
 
     return X, y
 

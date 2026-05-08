@@ -2,9 +2,9 @@ from typing import List, cast
 
 import pandas as pd
 
-from .models import DatasetRowChurn
+from src.models import DatasetRowChurn
 
-class UseCsvData:    
+class UseCsvData:
     def __init__(self) -> None:
         self.df = pd.DataFrame()
 

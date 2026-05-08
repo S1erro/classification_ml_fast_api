@@ -30,3 +30,13 @@ class DatasetInfo(BaseModel): # модель для GET /dataset/info
     columns_count: int
     titles: List[str]
     churn_distribution: dict[str, float]
+
+class SplitInfo(BaseModel): # модель для POST /dataset/split-info
+    train_shape: tuple[int, int]
+    test_shape: tuple[int, int]
+    test_distribution: dict
+    train_distribution: dict
+
+class TrainModel(BaseModel): # модель для POST /model/train
+    accuracy: float
+    f1_score: float
