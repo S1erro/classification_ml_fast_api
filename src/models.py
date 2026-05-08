@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -37,6 +37,11 @@ class SplitInfo(BaseModel): # модель для POST /dataset/split-info
     test_distribution: dict
     train_distribution: dict
 
-class TrainModel(BaseModel): # модель для POST /model/train
+class TrainModelMetrics(BaseModel): # модель для POST /model/train
     accuracy: float
     f1_score: float
+
+class ModelStatus(BaseModel): # модель для GET /model/status
+    is_trained: bool
+    timestamp: Optional[float]
+    metrics: Optional[TrainModelMetrics]
