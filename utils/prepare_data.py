@@ -42,8 +42,8 @@ def prepare_dataframe(df: DataFrame) -> tuple[DataFrame, Series]:
 
     return X, y
 
-def get_churn_distribution(y_test: Series, y_train: Series) -> tuple[float, float]:
-    test_distribution = (y_test == 1).sum() / (y_test == 0).sum()
-    train_distribution = (y_train == 1).sum() / (y_train == 0).sum()
+def get_churn_distribution(y_test: Series, y_train: Series) -> tuple[dict, dict]:
+    test_distribution = y_test.value_counts(normalize=True).to_dict()
+    train_distribution = y_train.value_counts(normalize=True).to_dict()
 
     return test_distribution, train_distribution
