@@ -1,17 +1,17 @@
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class FeatureVectorChurn(BaseModel):
-    monthly_fee: float
-    usage_hours: float
-    support_requests: int
-    account_age_months: int
-    failed_payments: int
-    region: str
-    device_type: str
-    payment_method: str
-    autopay_enabled: int
+    monthly_fee: float = Field(..., json_schema_extra={"example": 9.99})
+    usage_hours: float = Field(..., json_schema_extra={"example": 27.92})
+    support_requests: int = Field(..., json_schema_extra={"example": 1})
+    account_age_months: int = Field(..., json_schema_extra={"example": 14})
+    failed_payments: int = Field(..., json_schema_extra={"example": 1})
+    region: str = Field(..., json_schema_extra={"example": "america"})
+    device_type: str = Field(..., json_schema_extra={"example": "desktop"})
+    payment_method: str = Field(..., json_schema_extra={"example": "card"})
+    autopay_enabled: int = Field(..., json_schema_extra={"example": 1})
 
 class DatasetRowChurn(BaseModel): # строка тренировочного датасета
     monthly_fee: float
@@ -45,3 +45,7 @@ class ModelStatus(BaseModel): # модель для GET /model/status
     is_trained: bool
     timestamp: Optional[float]
     metrics: Optional[TrainModelMetrics]
+
+class PredictionResponseChurn(BaseModel): # модель для POST /predict
+    predicted_class: int = Field(..., json_schema_extra={"example": 0})
+    classes_probabilities: tuple[float, float] = Field(..., json_schema_extra={"example": [0.6781, 0.3219]})

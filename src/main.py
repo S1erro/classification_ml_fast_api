@@ -1,8 +1,9 @@
 import time
 import os
+import pandas as pd
 from typing import List, Union
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.pipeline import Pipeline
 
@@ -13,7 +14,7 @@ from .utils.prepare_data import get_churn_distribution, prepare_dataframe, split
 from .utils.read_csv import UseCsvData
 from .utils.train_model import train_churn_model
 from .utils.save_load_models import SavedModel, load_model, save_model
-from .models import DatasetInfo, DatasetRowChurn, FeatureVectorChurn, ModelStatus, SplitInfo, TrainModelMetrics
+from .models import DatasetInfo, DatasetRowChurn, FeatureVectorChurn, ModelStatus, PredictionResponseChurn, SplitInfo, TrainModelMetrics
 
 
 app = FastAPI()
@@ -122,8 +123,25 @@ async def train_model() -> TrainModelMetrics:
     return metrics
 
 @app.post("/predict")
-async def predict(vector: FeatureVectorChurn) -> FeatureVectorChurn:
-    return vector
+async def predict(vector: FeatureVectorChurn) -> PredictionResponseChurn:
+    global saved_model
+
+    df = pd.DataFrame(data=[vector.model_dump()])
+
+    prediction = None
+    prediction_proba = None
+
+    if saved_model != None:
+        prediction = saved_model.model.predict(df)
+        prediction_proba = saved_model.model.predict_proba(df)
+    else:
+        raise HTTPException(status_code=500, detail="Model is not trained")
+
+
+    return PredictionResponseChurn(
+        predicted_class=int(prediction[0]),
+        classes_probabilities=prediction_proba[0].tolist()
+    )
 
 if __name__ == "__main__":
     pass
