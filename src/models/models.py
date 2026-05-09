@@ -56,3 +56,6 @@ class ModelStatus(BaseModel): # модель для GET /model/status
     timestamp: Optional[float]
     metrics: Optional[TrainModelMetrics]
     training_config: Optional[TrainingConfigChurn]
+
+# class ModelFeatures(BaseModel):
+#     features: dict[FeatureVectorChurn.dict]

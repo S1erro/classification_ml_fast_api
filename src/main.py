@@ -1,7 +1,7 @@
 import time
 import os
 import pandas as pd
-from typing import List, Union
+from typing import Any, List, Union
 
 from fastapi import FastAPI, HTTPException
 from sklearn.metrics import accuracy_score, f1_score
@@ -96,6 +96,10 @@ async def get_model_status() -> ModelStatus:
         training_config=training_config
     )
 
+@app.get("/model/schema")
+async def get_required_features() -> dict[str, Any]:
+    return FeatureVectorChurn.model_json_schema()
+
 @app.post("/model/train")
 async def train_model(training_config: TrainingConfigChurn) -> TrainModelMetrics:
     global saved_model
@@ -142,7 +146,8 @@ async def predict(vector: FeatureVectorChurn) -> PredictionResponseChurn:
     """
     global saved_model
 
-    df = pd.DataFrame(data=[vector.model_dump()])
+    expected_cols = NUMERIC_COLUMNS + CATEGORICAL_COLUMNS
+    df = pd.DataFrame(data=[vector.model_dump()]).reindex(columns=expected_cols)
 
     prediction = None
     prediction_proba = None
