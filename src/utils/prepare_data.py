@@ -1,7 +1,7 @@
 from sklearn.model_selection import train_test_split
 from pandas import DataFrame, Series
 
-from ..constants.constants import CATEGORICAL_COLUMNS, NUMERIC_COLUMNS
+from ..types.constants.dataframe_columns import CATEGORICAL_COLUMNS, NUMERIC_COLUMNS
 
 def split_train_test(
         X: DataFrame,

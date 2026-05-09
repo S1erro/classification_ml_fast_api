@@ -1,6 +1,8 @@
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 from pydantic import BaseModel, Field
+
+from ..types.model_type import ModelType
 
 class FeatureVectorChurn(BaseModel):
     monthly_fee: float = Field(..., json_schema_extra={"example": 9.99})
@@ -41,11 +43,16 @@ class TrainModelMetrics(BaseModel): # модель для POST /model/train
     accuracy: float
     f1_score: float
 
+class PredictionResponseChurn(BaseModel): # модель для POST /predict
+    predicted_class: int = Field(..., json_schema_extra={"example": 0})
+    classes_probabilities: tuple[float, float] = Field(..., json_schema_extra={"example": [0.6781, 0.3219]})
+
+class TrainingConfigChurn(BaseModel):
+    model_type: ModelType = Field(..., json_schema_extra={"example": "logreg"})
+    hyperparameters: dict = Field(..., json_schema_extra={"example": {"max_iter": 1000}})
+
 class ModelStatus(BaseModel): # модель для GET /model/status
     is_trained: bool
     timestamp: Optional[float]
     metrics: Optional[TrainModelMetrics]
-
-class PredictionResponseChurn(BaseModel): # модель для POST /predict
-    predicted_class: int = Field(..., json_schema_extra={"example": 0})
-    classes_probabilities: tuple[float, float] = Field(..., json_schema_extra={"example": [0.6781, 0.3219]})
+    training_config: Optional[TrainingConfigChurn]

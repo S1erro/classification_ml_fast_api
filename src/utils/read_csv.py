@@ -2,7 +2,7 @@ from typing import List, cast
 
 import pandas as pd
 
-from src.models import DatasetRowChurn
+from ..models.models import DatasetRowChurn
 
 class UseCsvData:
     def __init__(self) -> None:

@@ -1,16 +1,6 @@
-from dataclasses import dataclass
-
-from pydantic import BaseModel
-from sklearn.pipeline import Pipeline
 import joblib
 
-from ..models import TrainModelMetrics
-
-@dataclass
-class SavedModel:
-    model: Pipeline
-    timestamp: float
-    metrics: TrainModelMetrics
+from ..types.saved_model import SavedModel
 
 def save_model(model: SavedModel, model_name: str) -> None:
     joblib.dump(model, model_name)

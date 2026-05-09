@@ -5,16 +5,16 @@ from typing import List, Union
 
 from fastapi import FastAPI, HTTPException
 from sklearn.metrics import accuracy_score, f1_score
-from sklearn.pipeline import Pipeline
 
-from .constants.constants import CATEGORICAL_COLUMNS, NUMERIC_COLUMNS
-from .pipelines.logistic_regression import build_logistic_regression_pipeline
+from .types.model_type import ModelType
+from .types.constants.dataframe_columns import CATEGORICAL_COLUMNS, NUMERIC_COLUMNS
+from .pipelines.build_model_pypeline import build_model_pipeline
 from .utils.is_dataframe_empty import is_dataframe_empty
 from .utils.prepare_data import get_churn_distribution, prepare_dataframe, split_train_test
 from .utils.read_csv import UseCsvData
 from .utils.train_model import train_churn_model
 from .utils.save_load_models import SavedModel, load_model, save_model
-from .models import DatasetInfo, DatasetRowChurn, FeatureVectorChurn, ModelStatus, PredictionResponseChurn, SplitInfo, TrainModelMetrics
+from .models.models import DatasetInfo, DatasetRowChurn, FeatureVectorChurn, ModelStatus, PredictionResponseChurn, SplitInfo, TrainModelMetrics, TrainingConfigChurn
 
 
 app = FastAPI()
@@ -73,23 +73,31 @@ async def get_dataset_split_info() -> SplitInfo:
 
 @app.get("/model/status")
 async def get_model_status() -> ModelStatus:
+    """
+    Get status of the last trained model
+    """
+    global saved_model
+
     is_trained = False
     timestamp = None
-    metrics = None 
+    metrics = None
+    training_config = None
 
     if saved_model:
         is_trained = True
         timestamp = saved_model.timestamp
         metrics = saved_model.metrics
+        training_config = saved_model.training_config
 
     return ModelStatus(
         is_trained=is_trained,
         timestamp=timestamp,
-        metrics=metrics
+        metrics=metrics,
+        training_config=training_config
     )
 
 @app.post("/model/train")
-async def train_model() -> TrainModelMetrics:
+async def train_model(training_config: TrainingConfigChurn) -> TrainModelMetrics:
     global saved_model
 
     is_dataframe_empty(csv_data.df)
@@ -97,7 +105,7 @@ async def train_model() -> TrainModelMetrics:
     X, y = prepare_dataframe(csv_data.df)
     X_train, X_test, y_train, y_test = split_train_test(X, y)
 
-    pipeline = build_logistic_regression_pipeline(NUMERIC_COLUMNS, CATEGORICAL_COLUMNS)
+    pipeline = build_model_pipeline(training_config, NUMERIC_COLUMNS, CATEGORICAL_COLUMNS)
 
     model = train_churn_model(X_train, y_train, pipeline)
     predictions = model.predict(X_test)
@@ -113,17 +121,25 @@ async def train_model() -> TrainModelMetrics:
     model_to_save: SavedModel = SavedModel(
         model=model,
         timestamp=time.time(),
-        metrics=metrics
+        metrics=metrics,
+        training_config=training_config
     )
 
     os.makedirs("src/cached_models", exist_ok=True)
-    save_model(model_to_save, "src/cached_models/linear_regression.joblib")
+    if training_config.model_type == ModelType.LOG_REG:
+        save_model(model_to_save, "src/cached_models/linear_regression.joblib")
+    elif training_config.model_type == ModelType.RAND_FOREST:
+        save_model(model_to_save, "src/cached_models/random_forest.joblib")
+
     saved_model = model_to_save
 
     return metrics
 
 @app.post("/predict")
 async def predict(vector: FeatureVectorChurn) -> PredictionResponseChurn:
+    """
+    Predict by using the last trained model
+    """
     global saved_model
 
     df = pd.DataFrame(data=[vector.model_dump()])
