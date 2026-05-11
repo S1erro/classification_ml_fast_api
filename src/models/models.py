@@ -18,7 +18,7 @@ class FeatureVectorChurn(BaseModel):
     payment_method: str = Field(..., json_schema_extra={"example": "card"})
     autopay_enabled: int = Field(..., json_schema_extra={"example": 1})
 
-class DatasetRowChurn(BaseModel): # строка тренировочного датасета
+class DatasetRowChurn(BaseModel):
     monthly_fee: float
     usage_hours: float
     support_requests: int
@@ -30,24 +30,24 @@ class DatasetRowChurn(BaseModel): # строка тренировочного д
     autopay_enabled: int
     churn:int
 
-class DatasetInfo(BaseModel): # модель для GET /dataset/info
+class DatasetInfo(BaseModel):
     rows_count: int
     columns_count: int
     titles: List[str]
     churn_distribution: Dict[str, float]
 
-class SplitInfo(BaseModel): # модель для POST /dataset/split-info
+class SplitInfo(BaseModel):
     train_shape: tuple[int, int]
     test_shape: tuple[int, int]
     test_distribution: Dict
     train_distribution: Dict
 
-class TrainModelMetrics(BaseModel): # модель для POST /model/train
+class TrainModelMetrics(BaseModel):
     accuracy: float
     f1_score: float
     roc_auc: float
 
-class PredictionResponseChurn(BaseModel): # модель для POST /predict
+class PredictionResponseChurn(BaseModel):
     predicted_class: int = Field(..., json_schema_extra={"example": 0})
     classes_probabilities: tuple[float, float] = Field(..., json_schema_extra={"example": [0.6781, 0.3219]})
 
@@ -55,13 +55,13 @@ class TrainingConfigChurn(BaseModel):
     model_type: ModelType = Field(..., json_schema_extra={"example": "logreg"})
     hyperparameters: Dict = Field(..., json_schema_extra={"example": {"max_iter": 1000}})
 
-class ModelStatus(BaseModel): # модель для GET /model/status
+class ModelStatus(BaseModel):
     is_trained: bool
     timestamp: Optional[float]
     metrics: Optional[TrainModelMetrics]
     training_config: Optional[TrainingConfigChurn]
 
-class ErrorResponse(BaseModel): # модель HTTP ошибок
+class ErrorResponse(BaseModel):
     code: ResponseErrorTypes
     message: str
     details: Optional[Dict[str, Any]] = None

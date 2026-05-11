@@ -156,12 +156,16 @@ async def get_dataset_info() -> DatasetInfo:
 
     shape = csv_data.df.shape
     columns = csv_data.df.columns.tolist()
+    churn_distribution = {
+        str(churn_class): float(ratio)
+        for churn_class, ratio in csv_data.df["churn"].value_counts(normalize=True).items()
+    }
 
     dataset_info: DatasetInfo = DatasetInfo(
         rows_count=shape[0],
         columns_count=shape[1],
         titles=columns,
-        churn_distribution={'temporary plug': 0.29}
+        churn_distribution=churn_distribution
     )
     return dataset_info
 
@@ -416,6 +420,3 @@ async def predict(vector: FeatureVectorChurn) -> PredictionResponseChurn:
         predicted_class=int(prediction[0]),
         classes_probabilities=prediction_proba[0].tolist()
     )
-
-if __name__ == "__main__":
-    pass
