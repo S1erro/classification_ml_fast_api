@@ -45,6 +45,7 @@ class SplitInfo(BaseModel): # модель для POST /dataset/split-info
 class TrainModelMetrics(BaseModel): # модель для POST /model/train
     accuracy: float
     f1_score: float
+    roc_auc: float
 
 class PredictionResponseChurn(BaseModel): # модель для POST /predict
     predicted_class: int = Field(..., json_schema_extra={"example": 0})

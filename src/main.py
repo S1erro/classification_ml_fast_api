@@ -1,13 +1,15 @@
 import time
 import os
+import logging
 from fastapi.responses import JSONResponse
 import pandas as pd
-from typing import Any, List, Union
+from typing import Any, List, Optional, Union
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
+from .types.saved_model import SavedModel, BaseSavedModel, SavedModelToHistory
 from .types.constants.response_error_types import ResponseErrorTypes
 from .types.model_type import ModelType
 from .types.constants.dataframe_columns import CATEGORICAL_COLUMNS, NUMERIC_COLUMNS
@@ -16,24 +18,37 @@ from .utils.is_dataframe_empty import is_dataframe_empty
 from .utils.prepare_data import get_churn_distribution, prepare_dataframe, split_train_test
 from .utils.read_csv import UseCsvData
 from .utils.train_model import train_churn_model
-from .utils.save_load_models import SavedModel, load_model, save_model
+from .utils.save_load_models import load_from_history, load_model, save_model, add_to_history
 from .models.models import DatasetInfo, DatasetRowChurn, ErrorResponse, FeatureVectorChurn, ModelStatus, PredictionResponseChurn, SplitInfo, TrainModelMetrics, TrainingConfigChurn
 
 
 app = FastAPI()
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
+logger = logging.getLogger("churn_service")
+
+cached_models_path = "data/cached_models"
+train_history_path = "data/train_history"
+
 csv_data = UseCsvData()
-csv_data.read_csv("data/churn_dataset.csv")
+csv_data.read_csv("data/datasets/churn_dataset.csv")
+logger.info("Dataset loaded: data/datasets/churn_dataset.csv, rows=%s", len(csv_data.df))
 
 saved_model: Union[SavedModel, None] = None
 
 try:
-    saved_model = load_model("src/cached_models/linear_regression.joblib")
+    saved_model = load_model(cached_models_path + "/linear_regression.joblib")
+    logger.info("Cached model loaded from %s", cached_models_path + "/linear_regression.joblib")
 except:
     saved_model = None
+    logger.info("No cached model was loaded on startup")
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.warning("Validation error on %s: %s", request.url.path, exc.errors())
     code = (
         ResponseErrorTypes.INVALID_FEATURE_VECTOR
         if request.url.path == "/predict"
@@ -52,6 +67,7 @@ async def request_validation_exception_handler(request: Request, exc: RequestVal
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
+    logger.error("HTTP exception on %s: status=%s detail=%s", request.url.path, exc.status_code, exc.detail)
     code = ResponseErrorTypes.INTERNAL_ERROR
     if request.url.path == "/predict" and exc.status_code == 500:
         code = ResponseErrorTypes.MODEL_NOT_TRAINED
@@ -68,6 +84,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
+    logger.error("ValueError on %s: %s", request.url.path, str(exc))
     code = ResponseErrorTypes.DATA_PREPARATION_ERROR
     lowered = str(exc).lower()
     if "no data" in lowered or "empty" in lowered:
@@ -85,6 +102,7 @@ async def value_error_handler(request: Request, exc: ValueError):
 
 @app.exception_handler(KeyError)
 async def key_error_handler(request: Request, exc: KeyError):
+    logger.error("KeyError on %s: %s", request.url.path, str(exc))
     code = ResponseErrorTypes.INVALID_FEATURE_VECTOR if request.url.path == "/predict" else ResponseErrorTypes.DATA_PREPARATION_ERROR
 
     return JSONResponse(
@@ -99,6 +117,7 @@ async def key_error_handler(request: Request, exc: KeyError):
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled exception on %s", request.url.path)
     code = ResponseErrorTypes.MODEL_PREDICTION_ERROR if request.url.path == "/predict" else ResponseErrorTypes.INTERNAL_ERROR
 
     return JSONResponse(
@@ -113,6 +132,16 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 @app.get("/")
 async def root():
     return {"message": "ml churn service is running"}
+
+
+@app.get("/health")
+async def health() -> dict[str, bool]:
+    global saved_model, csv_data
+
+    return {
+        "model_available": saved_model is not None,
+        "dataset_loaded": not csv_data.df.empty,
+    }
 
 @app.get("/dataset/preview")
 async def get_dataset_preview(rows_count: int) -> List[DatasetRowChurn]:
@@ -181,6 +210,14 @@ async def get_model_status() -> ModelStatus:
 async def get_required_features() -> dict[str, Any]:
     return FeatureVectorChurn.model_json_schema()
 
+@app.get("/model/metrics")
+async def get_model_metrics() -> Optional[TrainModelMetrics]:
+    global train_history_path
+
+    last_record_model = load_from_history(train_history_path + "/train_history.json")
+    
+    return last_record_model.metrics if last_record_model else None
+
 @app.post(
     "/model/train",
     responses={
@@ -247,7 +284,8 @@ async def get_required_features() -> dict[str, Any]:
     },
 )
 async def train_model(training_config: TrainingConfigChurn) -> TrainModelMetrics:
-    global saved_model
+    global saved_model, cached_models_path
+    logger.info("Model training started with model_type=%s", training_config.model_type)
 
     is_dataframe_empty(csv_data.df)
 
@@ -261,26 +299,45 @@ async def train_model(training_config: TrainingConfigChurn) -> TrainModelMetrics
 
     accuracy = float(accuracy_score(y_test, predictions))
     f1 = float(f1_score(y_test, predictions))
+    roc_auc = float(roc_auc_score(y_test, predictions))
 
     metrics = TrainModelMetrics(
         accuracy=accuracy,
-        f1_score=f1
+        f1_score=f1,
+        roc_auc=roc_auc
     )
 
-    model_to_save: SavedModel = SavedModel(
-        model=model,
+    model_to_save: BaseSavedModel = BaseSavedModel(
         timestamp=time.time(),
         metrics=metrics,
         training_config=training_config
     )
 
-    os.makedirs("src/cached_models", exist_ok=True)
-    if training_config.model_type == ModelType.LOG_REG:
-        save_model(model_to_save, "src/cached_models/linear_regression.joblib")
-    elif training_config.model_type == ModelType.RAND_FOREST:
-        save_model(model_to_save, "src/cached_models/random_forest.joblib")
+    os.makedirs(cached_models_path, exist_ok=True)
+    save_path = cached_models_path + "/linear_regression.joblib" if training_config.model_type == ModelType.LOG_REG else "/random_forest.joblib"
+    history_path = train_history_path + "/train_history.json"
+    save_model(
+        SavedModel(
+            **model_to_save.to_dict(),
+            model=model
+        ),
+        save_path
+    )
 
-    saved_model = model_to_save
+    add_to_history(
+        SavedModelToHistory(
+            **model_to_save.to_dict(),
+            model_type=training_config.model_type
+        ),
+        history_path
+    )
+
+    saved_model = SavedModel(
+        **model_to_save.to_dict(),
+        model=model
+    )
+
+    logger.info("Model training finished. accuracy=%.4f f1=%.4f roc_auc=%.4f", metrics.accuracy, metrics.f1_score, metrics.roc_auc)
 
     return metrics
 
@@ -341,6 +398,7 @@ async def predict(vector: FeatureVectorChurn) -> PredictionResponseChurn:
     Predict by using the last trained model
     """
     global saved_model
+    logger.info("/predict called")
 
     expected_cols = NUMERIC_COLUMNS + CATEGORICAL_COLUMNS
     df = pd.DataFrame(data=[vector.model_dump()]).reindex(columns=expected_cols)
@@ -350,6 +408,8 @@ async def predict(vector: FeatureVectorChurn) -> PredictionResponseChurn:
 
     prediction = saved_model.model.predict(df)
     prediction_proba = saved_model.model.predict_proba(df)
+
+    logger.info("/predict completed successfully")
 
 
     return PredictionResponseChurn(
